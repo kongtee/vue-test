@@ -25,7 +25,6 @@ export default new Router({
     routes: [
         {
             path: '/',
-            redirect: '/createtask',
             meta: {}
         },
         ...generateRoutesFromMenu(menus.state.items)

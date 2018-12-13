@@ -24,8 +24,8 @@ module.exports = {
         extensions: ['.js', '.vue', '.json'],
         alias: {
             '@Common': path.resolve(__dirname, './../common'),
-            '@Validator': path.resolve(__dirname, './../common/validator'),
-            '@Request': path.resolve(__dirname, './../comp/request')
+            '@Assets': path.resolve(__dirname, './../assets'),
+            '@Views': path.resolve(__dirname, './../views')
         }
     },
 

@@ -20,6 +20,8 @@
             <!--navbar 内容结束-->
         </Navbar>
         <div class="main-content">
+            <!--侧边栏-->
+            <!--<Sidebar :show="layout.showSidebar" v-if="layout.showSidebar"></Sidebar>-->
             <!--页面内容-->
             <AppMain></AppMain>
         </div>
@@ -86,15 +88,17 @@
 </style>
 
 <script>
-import { mapState, mapGetters } from 'vuex';
+import { mapGetters } from 'vuex';
 import {
     Navbar,
+    // Sidebar,
     AppMain
 } from './components/layout/index';
 
 export default {
     components: {
         Navbar,
+        // Sidebar,
         AppMain
     },
     data() {
