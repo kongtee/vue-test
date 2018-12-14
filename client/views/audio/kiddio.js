@@ -55,14 +55,15 @@ const AXIS_COLOR = '#000';       // 坐标系的背景色
 const AXIS_X_COLOR = '#424242';  // 坐标系X轴的背景色
 const MAX_SCALE = 10;            // 最大放大倍数
 
-
-let ddd = d3.line()
+/**
+ * 画线性线段
+ */
+let linearLine = d3.line()
     .x(function (d) {
-        return d.x;
+        return d[ 0 ];
     })
-    //   获取每个节点的y坐标
     .y(function (d) {
-        return d.y;
+        return d[ 1 ];
     });
 
 class KedAudio {
@@ -246,17 +247,6 @@ class KedAudio {
         //     .attr('id', 'axisBackGround');
     }
 
-    _line(points) {
-        d3.line(points)
-            .x(function (d) {
-                return d.x;
-            })
-            //   获取每个节点的y坐标
-            .y(function (d) {
-                return d.y;
-            });
-    }
-
     /**g
      * 绘制坐标系points
      * @private
@@ -265,57 +255,52 @@ class KedAudio {
     _drawCoordinates(duration) {
         this._resetCoordinates();
 
-        let time = new Date('2018-12-12 00:00:00').getTime();
+        let time = new Date('2018-12-12 00:00:00').getTime(); // 随便选取个时间的开始，用来格式化标尺x轴刻度
+        let containerWidth = this.containerWidth;  // 频谱可视区域宽度
 
+        // 获取展示的x轴刻度的值的数组
         let axisX = d3.scaleLinear()
             .domain([ time + 1000 * 0, time + 1000 * 10 ])
-            .range([ 0, this.containerWidth ]).ticks(10);
-        console.log('axisX:', axisX);
-        //
-        // let axisXTicks = d3.ticks(0, 10, 100); // 画X轴需要的点的数组
-        // console.log('axisXTicks:', axisXTicks);
+            .range([ 0, containerWidth ]).ticks(10);
 
-        // for (let i = 0; i < )
-        let axisSticks = [
-            { x: 0, y: 300 },
-            { x: 1000, y: 300 }
-        ];
+        let axisSticks = [];  // 存放刻度的路径坐标
+        let axisHeight = this.axisHeight;  // 频谱区域高度
+        let step = containerWidth / 10;  // 大刻度步长
+        let textTop = axisHeight + this.axisXHeight / 2; // 刻度文字的y坐标
+        let rulerText = ' 0s';   // x轴刻度文本
+        for (let i = 0; i < 10; i++) {
+            let bx = i * step;  // 大刻度x轴坐标
+            axisSticks.push([ bx, axisHeight ]);  // 大刻度点
+            axisSticks.push([ bx, axisHeight - 20 ]);  // 大刻度的竖线
+            axisSticks.push([ bx, axisHeight ]);
+            if (i > 0) {
+                rulerText = d3.timeFormat('%M:%S')(axisX[i]);
+            }
 
-        this.SVG.append('path').attr('fill', '#fff').attr('fill-width', '0.5').attr('d', ddd(axisSticks));
+            // 绘制x轴刻度文本
+            this.SVG.append('text')
+                .text(rulerText)
+                .attr('x', bx)
+                .attr('y', textTop)
+                .attr('fill', '#fff')
+                .attr('text-anchor', 'middle');
 
-        // this.SVG.append('g')
-        //     .attr('transform', 'translate(0,' + this.axisHeight + ')')
-        //     .call(d3.axisBottom(axisX).tickFormat(d3.timeFormat('%M:%S')).tickSizeInner(10));
-        //
-        // this.SVG.append('text').text('sddd').attr('x', 35).attr('y', this.axisHeight + this.axisXHeight / 2).attr('text-anchor', 'middle').attr('fill', '#fff').attr('fontSize', '20px')
-        // let axisarr = [];
-        // let perSecondPx = trueWidth * this.scale / seconds * ticks;
-        //
-        // let j = 0;
-        //
-        // for (let i = 0; i < end;) {
-        //     if (j % 10 === 0) {
-        //         j = 1;
-        //         axisarr.push([ i, height ]);
-        //         axisarr.push([ i, height - 20 ]);
-        //         axisarr.push([ i, height ]);
-        //         if (i === 0) {
-        //             svg.append('text').text('s').attr('x', i + 5).attr('y', height + axisHeight / 2).attr('text-anchor', 'middle').attr('class', 'axisText').attr('fill', color)
-        //         } else {
-        //             if (end - i > 0.2 * perSecondPx) { // 末尾至少能够多显示0.2s，才显示刻度值
-        //                 svg.append('text').text(changeForm(Math.round(i / perSecondPx))).attr('x', i).attr('y', height + axisHeight / 2).attr('text-anchor', 'middle').attr('class', 'axisText').attr('fill', color)
-        //             }
-        //         }
-        //     } else {
-        //         axisarr.push([ i, height ]);
-        //         axisarr.push([ i, height - 10 ]);
-        //         axisarr.push([ i, height ]);
-        //         j++;
-        //     }
-        //     i += perSecondPx / 10;
-        // }
-        // axisarr.push([ width, height ]);
-        // svg.append('path').attr('stroke', color).attr('stroke-width', '0.5').attr('fill', color).attr('d', lineGenerator(axisarr));
+            // 计算小刻度坐标
+            for (let j = 1; j < 10; j++) {
+                let sx = bx + j * step / 10;  // 小刻度x轴坐标
+                axisSticks.push([ sx, axisHeight ]);
+                axisSticks.push([ sx, axisHeight - 10 ]);
+                axisSticks.push([ sx, axisHeight ]);
+            }
+        }
+
+        // 计算最后一个刻度
+        axisSticks.push([ containerWidth, axisHeight ]);
+        axisSticks.push([ containerWidth, axisHeight - 20 ]);
+        axisSticks.push([ containerWidth, axisHeight ]);
+
+        // 绘制x轴和刻度线
+        this.SVG.append('path').attr('stroke', '#fff').attr('stroke-width', '0.5').attr('d', linearLine(axisSticks));
     }
 }
 
