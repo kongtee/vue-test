@@ -54,17 +54,7 @@ const AXIS_X_HEIGHT = 30;       // 坐标系X轴高度
 const AXIS_COLOR = '#000';       // 坐标系的背景色
 const AXIS_X_COLOR = '#424242';  // 坐标系X轴的背景色
 const MAX_SCALE = 10;            // 最大放大倍数
-
-/**
- * 画线性线段
- */
-let linearLine = d3.line()
-    .x(function (d) {
-        return d[ 0 ];
-    })
-    .y(function (d) {
-        return d[ 1 ];
-    });
+const PER_SECONDS = 10;          // 每屏显示时长
 
 class KedAudio {
     constructor(option) {
@@ -87,6 +77,8 @@ class KedAudio {
         this.SVGWidth = this.containerWidth; // SVG宽度
         this.scale = 1;       // 放大倍数
         this.axisWidth = 0;   // 坐标系宽度
+        this.duration = 10;   // 音频时长
+        this.step = 0;   // 大刻度步长
 
         this._init();
     }
@@ -220,12 +212,22 @@ class KedAudio {
             throw ERR_INFO.DECODE_AUDIO_ERR;
         }
 
+        // 设置容器的样式
+        let containerStyle = 'width: 100%; height: 330px; position: relative; overflow-x: auto; overflow-y: hidden';
+        drawContainer.attr('style', containerStyle);
+
         // 设置容器的宽高
         this.containerWidth = container.clientWidth;
         this.containerHeight = container.clientHeight;
 
+        this.duration = 15;
+
+        let containerWidth = this.containerWidth;  // 频谱可视区域宽度
+        this.step = containerWidth / 10;  // 大刻度步长
+        this.axisWidth = this.step * this.duration;   // x轴的宽度
+
         this.SVG = drawContainer.append('svg')
-            .attr('width', this.containerWidth)
+            .attr('width', this.axisWidth)
             .attr('height', this.containerHeight);
     }
 
@@ -247,7 +249,20 @@ class KedAudio {
         //     .attr('id', 'axisBackGround');
     }
 
-    /**g
+    /**
+     * 画线性线段
+     */
+    linearLine(points) {
+        return d3.line()
+            .x(function (d) {
+                return d[ 0 ];
+            })
+            .y(function (d) {
+                return d[ 1 ];
+            })(points);
+    }
+
+    /**
      * 绘制坐标系points
      * @private
      * @param duration 时长
@@ -258,23 +273,24 @@ class KedAudio {
         let time = new Date('2018-12-12 00:00:00').getTime(); // 随便选取个时间的开始，用来格式化标尺x轴刻度
         let containerWidth = this.containerWidth;  // 频谱可视区域宽度
 
-        // 获取展示的x轴刻度的值的数组
-        let axisX = d3.scaleLinear()
-            .domain([ time + 1000 * 0, time + 1000 * 10 ])
-            .range([ 0, containerWidth ]).ticks(10);
-
         let axisSticks = [];  // 存放刻度的路径坐标
         let axisHeight = this.axisHeight;  // 频谱区域高度
-        let step = containerWidth / 10;  // 大刻度步长
         let textTop = axisHeight + this.axisXHeight / 2; // 刻度文字的y坐标
         let rulerText = ' 0s';   // x轴刻度文本
-        for (let i = 0; i < 10; i++) {
-            let bx = i * step;  // 大刻度x轴坐标
+
+        // 获取展示的x轴刻度的值的数组
+        let axisX = d3.scaleLinear()
+            .domain([ time, time + 1000 * this.duration ])
+            .range([ 0, this.axisWidth ]).ticks(this.duration);
+        console.log(this.duration, this.axisWidth, axisX);
+
+        for (let i = 0; i < this.duration; i++) {
+            let bx = i * this.step;  // 大刻度x轴坐标
             axisSticks.push([ bx, axisHeight ]);  // 大刻度点
             axisSticks.push([ bx, axisHeight - 20 ]);  // 大刻度的竖线
             axisSticks.push([ bx, axisHeight ]);
             if (i > 0) {
-                rulerText = d3.timeFormat('%M:%S')(axisX[i]);
+                rulerText = d3.timeFormat('%M:%S')(axisX[ i ]);
             }
 
             // 绘制x轴刻度文本
@@ -287,7 +303,7 @@ class KedAudio {
 
             // 计算小刻度坐标
             for (let j = 1; j < 10; j++) {
-                let sx = bx + j * step / 10;  // 小刻度x轴坐标
+                let sx = bx + j * this.step / 10;  // 小刻度x轴坐标
                 axisSticks.push([ sx, axisHeight ]);
                 axisSticks.push([ sx, axisHeight - 10 ]);
                 axisSticks.push([ sx, axisHeight ]);
@@ -300,7 +316,7 @@ class KedAudio {
         axisSticks.push([ containerWidth, axisHeight ]);
 
         // 绘制x轴和刻度线
-        this.SVG.append('path').attr('stroke', '#fff').attr('stroke-width', '0.5').attr('d', linearLine(axisSticks));
+        this.SVG.append('path').attr('stroke', '#fff').attr('stroke-width', 1 / window.devicePixelRatio).attr('d', this.linearLine(axisSticks));
     }
 }
 
