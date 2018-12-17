@@ -54,19 +54,24 @@ const AXIS_X_HEIGHT = 30;       // 坐标系X轴高度
 const AXIS_COLOR = '#000';       // 坐标系的背景色
 const AXIS_X_COLOR = '#424242';  // 坐标系X轴的背景色
 const MAX_SCALE = 10;            // 最大放大倍数
+const MIN_SCALE = 1;             // 最小缩小倍数
+const PER_SCALE = 1;             // 每次缩放的倍数
 const PER_SECONDS = 10;          // 每屏显示时长
 
 class KedAudio {
     constructor(option) {
         // 初始化参数
-        this.url = option.url;  // 音频地址。
-        this.container = option.container;  // 容器标签
+        this.url = option.url;  // 必填项，音频地址。
+        this.container = option.container;  // 必填项，容器标签
+        this.d3Container = d3.select(option.container);  // 容器转换为d3容器
         this.bgHeight = option.bgHeight || BG_HEIGHT;  // 背景SVG高度
         this.axisHeight = option.axisHeight || AXIS_HEIGHT;  // 坐标系高度
-        this.axisXHeight = option.axisXHeight || AXIS_X_HEIGHT;  // 坐标系X轴高度
+        this.axisXHeight= option.axisXHeight || AXIS_X_HEIGHT;  // 坐标系X轴高度
         this.axisColor = option.axisColor || AXIS_COLOR;  // 坐标系背景色
         this.axisXColor = option.axisXColor || AXIS_X_COLOR;  // 坐标系X轴的背景色
         this.maxScale = option.maxScale || MAX_SCALE;  // 最大放大倍数
+        this.minScale = option.minScale || MIN_SCALE;  // 最小缩小倍数
+        this.perScale = option.perScale || PER_SCALE;  // 每次缩放的倍数
 
         // 内部变量
         this.context = null;  // 音频文件上下文环境
@@ -76,6 +81,7 @@ class KedAudio {
         this.SVG = null;      // svg容器
         this.SVGWidth = this.containerWidth; // SVG宽度
         this.scale = 1;       // 放大倍数
+        this.scaling = false; // 是否在缩放中
         this.axisWidth = 0;   // 坐标系宽度
         this.duration = 10;   // 音频时长
         this.step = 0;   // 大刻度步长
@@ -111,6 +117,8 @@ class KedAudio {
         this._createSVGContainer();
         // 绘制坐标系
         this._drawCoordinates();
+        // 事件绑定
+        this._bindEvent();
     }
 
     /**
@@ -204,31 +212,24 @@ class KedAudio {
      * @private
      */
     _createSVGContainer() {
-        let container = this.container;
-        let drawContainer = d3.select(container);
-
-        if (!drawContainer) {
+        if (!this.d3Container) {
             // 没有传入有效的容器
             throw ERR_INFO.DECODE_AUDIO_ERR;
         }
 
         // 设置容器的样式
         let containerStyle = 'width: 100%; height: 330px; position: relative; overflow-x: auto; overflow-y: hidden';
-        drawContainer.attr('style', containerStyle);
+        this.d3Container.attr('style', containerStyle);
 
         // 设置容器的宽高
-        this.containerWidth = container.clientWidth;
-        this.containerHeight = container.clientHeight;
+        this.containerWidth = this.container.clientWidth;
+        this.containerHeight = this.container.clientHeight;
 
         this.duration = 15;
 
         let containerWidth = this.containerWidth;  // 频谱可视区域宽度
         this.step = containerWidth / 10;  // 大刻度步长
         this.axisWidth = this.step * this.duration;   // x轴的宽度
-
-        this.SVG = drawContainer.append('svg')
-            .attr('width', this.axisWidth)
-            .attr('height', this.containerHeight);
     }
 
     /**
@@ -236,6 +237,7 @@ class KedAudio {
      * @private
      */
     _resetCoordinates() {
+        this.d3Container.select('#coordinates').remove();
         // d3.selectAll('#axisBackGround').remove();
         // this.axisWidth = this.container.clientWidth * this.scale / this.maxScale;
         // d3.selectAll('#axisBox').attr('style', `width: ${this.axisWidth}px`); //更改坐标轴处触发滚动div的宽度
@@ -265,10 +267,16 @@ class KedAudio {
     /**
      * 绘制坐标系points
      * @private
-     * @param duration 时长
      */
-    _drawCoordinates(duration) {
+    _drawCoordinates() {
         this._resetCoordinates();
+
+        console.log('this.d3Container:', this.d3Container);
+
+        let coordinates = this.d3Container.append('svg')
+            .attr('id', 'coordinates')
+            .attr('width', this.axisWidth * this.scale)
+            .attr('height', this.containerHeight);
 
         let time = new Date('2018-12-12 00:00:00').getTime(); // 随便选取个时间的开始，用来格式化标尺x轴刻度
         let containerWidth = this.containerWidth;  // 频谱可视区域宽度
@@ -284,8 +292,9 @@ class KedAudio {
             .range([ 0, this.axisWidth ]).ticks(this.duration);
         console.log(this.duration, this.axisWidth, axisX);
 
+        console.log('scale:', this.scale);
         for (let i = 0; i < this.duration; i++) {
-            let bx = i * this.step;  // 大刻度x轴坐标
+            let bx = i * this.step * this.scale;  // 大刻度x轴坐标
             axisSticks.push([ bx, axisHeight ]);  // 大刻度点
             axisSticks.push([ bx, axisHeight - 20 ]);  // 大刻度的竖线
             axisSticks.push([ bx, axisHeight ]);
@@ -294,7 +303,7 @@ class KedAudio {
             }
 
             // 绘制x轴刻度文本
-            this.SVG.append('text')
+            coordinates.append('text')
                 .text(rulerText)
                 .attr('x', bx)
                 .attr('y', textTop)
@@ -303,7 +312,7 @@ class KedAudio {
 
             // 计算小刻度坐标
             for (let j = 1; j < 10; j++) {
-                let sx = bx + j * this.step / 10;  // 小刻度x轴坐标
+                let sx = bx + j * (this.step / 10) * this.scale;  // 小刻度x轴坐标
                 axisSticks.push([ sx, axisHeight ]);
                 axisSticks.push([ sx, axisHeight - 10 ]);
                 axisSticks.push([ sx, axisHeight ]);
@@ -316,7 +325,52 @@ class KedAudio {
         axisSticks.push([ containerWidth, axisHeight ]);
 
         // 绘制x轴和刻度线
-        this.SVG.append('path').attr('stroke', '#fff').attr('stroke-width', 1 / window.devicePixelRatio).attr('d', this.linearLine(axisSticks));
+        coordinates.append('path').attr('stroke', '#fff').attr('stroke-width', 1 / window.devicePixelRatio).attr('d', this.linearLine(axisSticks));
+    }
+
+    /**
+     * 事件绑定
+     * @private
+     */
+    _bindEvent() {
+        // 监听滚轮事件，放大缩小
+        this.d3Container.on('mousewheel', () => {
+            let e = window.event;
+            e.preventDefault();
+            let wheel = e.wheelDelta;
+            console.log('mousewheel:', wheel);
+            //滚轮滚动一定距离、允许缩放功能打开、非播放状态时可缩放
+            // if (wheel < -100 && that.mouseScrollState && !that.play) {
+            if (wheel < -100 && !this.scaling) {
+                console.log('onmousewheel:缩小');
+                if (this.scale <= this.minScale) {
+                    console.log('已缩放到最小');
+                    return;
+                }
+                this.scaling = true;
+                this.scale -= this.perScale;
+
+                this._drawCoordinates();
+
+                setTimeout(() => {
+                    this.scaling = false;
+                }, 500);
+            } else if (wheel > 100 && !this.scaling) {
+                console.log('onmousewheel:放大');
+                if (this.scale >= this.maxScale) {
+                    console.log('已缩放到最大');
+                    return;
+                }
+                this.scaling = true;
+                this.scale += this.perScale;
+
+                this._drawCoordinates();
+
+                setTimeout(() => {
+                    this.scaling = false;
+                }, 500);
+            }
+        });
     }
 }
 
