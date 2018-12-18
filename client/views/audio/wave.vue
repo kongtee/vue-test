@@ -17,7 +17,7 @@
             init() {
                 try {
                     new Kiddio({
-                        url: '@Assets/media/Tokyo2020.mp3',
+                        url: 'https://ks3-cn-beijing.ksyun.com/imagemark/audio_20181020/44609f7a42be371a8fcfb796aebd91ed.wav',
                         container: this.$refs[ 'audioContainer' ]
                     });
                 } catch (e) {
