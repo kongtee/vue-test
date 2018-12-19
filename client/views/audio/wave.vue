@@ -32,9 +32,11 @@
 <style lang='less'>
     .frequency-audio-wrap {
         background: #424242;
-        padding: 20px 20px 0 20px;
+        padding: 8px 8px 0;
 
         .frequency-audio-container {
+            height: 280px;
+
             &::-webkit-scrollbar {
                 width: 3px;
                 height: 10px;

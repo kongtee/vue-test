@@ -48,12 +48,11 @@ const ERR_INFO = {
     }
 };
 
-const BG_HEIGHT = 330;           // 背景SVG高度
-const AXIS_HEIGHT = 300;         // 坐标系高度
+const BG_HEIGHT = 280;           // 背景SVG高度
+const AXIS_HEIGHT = 250;         // 坐标系高度
 const AXIS_X_HEIGHT = 30;       // 坐标系X轴高度
 const AXIS_COLOR = '#000';       // 坐标系的背景色
-const FREQUENCY_COLOR = '#424242';  // 坐标系X轴的背景色
-const AXIS_X_COLOR = '#56dda2';  // 频谱颜色
+const FREQUENCY_COLOR = '#56dda2';  // 坐标系X轴的背景色
 const MAX_SCALE = 10;            // 最大放大倍数
 const MIN_SCALE = 1;             // 最小缩小倍数
 const PER_SCALE = 1;             // 每次缩放的倍数
@@ -70,7 +69,6 @@ class KedAudio {
         this.axisXHeight = option.axisXHeight || AXIS_X_HEIGHT;  // 坐标系X轴高度
         this.axisColor = option.axisColor || AXIS_COLOR;  // 坐标系背景色
         this.frequencyColor = option.frequencyColor || FREQUENCY_COLOR;  // 频谱颜色
-        this.axisXColor = option.axisXColor || AXIS_X_COLOR;  // 坐标系X轴的背景色
         this.maxScale = option.maxScale || MAX_SCALE;  // 最大放大倍数
         this.minScale = option.minScale || MIN_SCALE;  // 最小缩小倍数
         this.perScale = option.perScale || PER_SCALE;  // 每次缩放的倍数
@@ -221,8 +219,10 @@ class KedAudio {
      */
     _getChannelData() {
         let buffer = this.buffer;
-        let maxTimeWidth = this.timeWidth * MAX_SCALE;  // 放到最大的时长宽度
-        let maxAxisWidth = this.axisWidth * MAX_SCALE;  // 放到最大的坐标系宽度
+        // let maxTimeWidth = this.timeWidth * MAX_SCALE;  // 放到最大的时长宽度
+        // let maxAxisWidth = this.axisWidth * MAX_SCALE;  // 放到最大的坐标系宽度
+        let maxTimeWidth = this.timeWidth * this.scale;  // 放到当前的倍数的时长宽度
+        let maxAxisWidth = this.axisWidth * this.scale;  // 放到最大的坐标系宽度
         let pixelStep = buffer.getChannelData(0).length / maxTimeWidth;  // 在最大宽度时每像素的抽点精度
         let frequencyData = new Float32Array(maxTimeWidth);  // 存放频谱数据的数组
         let axisHeight = this.axisHeight;  // 坐标系的高度
@@ -273,22 +273,39 @@ class KedAudio {
      * @private
      */
     _drawFrequency() {
+        // let len = this.frequencyArry.length * this.scale / this.maxScale;
         let len = this.frequencyArry.length;
-        let frequencys = [];
-        for (let i = 0; i < len; i++) {
+        let frequencyArry = this.frequencyArry;
+        let drawArry = [];  // 存放频谱图路径
+        let middleHeight = this.axisHeight / 2;   // 频谱中线的Y坐标
 
+        console.log('middleHeight:', middleHeight);
+        // 频谱路径数组，基于最小缩放倍数为1的情况，如果更小需要做修改
+        for (let i = 0; i < len; i++) {
+            drawArry.push([ i, middleHeight ]);
+            drawArry.push([ i, frequencyArry[i] ]);
+            drawArry.push([ i, middleHeight ]);
+        }
+
+        console.log('_drawFrequency:', drawArry);
+        console.log('frequency:', this.timeWidth * this.scale, this.axisHeight, this.frequencyColor);
+
+        let drawWidth = this.timeWidth * this.scale;
+        if (drawWidth < this.axisWidth) {
+            drawWidth = this.axisWidth
         }
 
         // 添加频谱元素
-        let frequency = this.d3Container.append('svg')
+        this.d3Container.append('svg')
             .attr('id', 'frequency')
-            .attr('width', this.timeWidth * this.scale)
+            .attr('width', drawWidth)
             .attr('height', this.axisHeight)
+            .attr('style', 'background-color: #000')
             .append('path')
             .attr('stroke', this.frequencyColor)
             .attr('fill', this.frequencyColor)
             .attr('stroke-width', 1 / window.devicePixelRatio)
-            .attr('d', this.linearLine(frequencys));
+            .attr('d', this.linearLine(drawArry));
 
     }
 
@@ -303,7 +320,7 @@ class KedAudio {
         }
 
         // 设置容器的样式
-        let containerStyle = 'width: 100%; height: 330px; position: relative; overflow-x: auto; overflow-y: hidden';
+        let containerStyle = 'width: 100%; position: relative; overflow-x: auto; overflow-y: hidden';
         this.d3Container.attr('style', containerStyle);
 
         // 设置容器的宽高

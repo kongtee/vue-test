@@ -29,7 +29,7 @@
         .flex(1);
         .flexbox(column);
         margin: 0;
-        padding: 30px;
+        padding: 0;
         overflow-y: auto;
         background-color: @main-background-color;
     }
