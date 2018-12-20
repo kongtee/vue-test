@@ -35,8 +35,6 @@
         padding: 8px 8px 0;
 
         .frequency-audio-container {
-            height: 280px;
-
             &::-webkit-scrollbar {
                 width: 3px;
                 height: 10px;

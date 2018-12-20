@@ -6,11 +6,31 @@
  * 参数：option = {
  *     url: 'http://xxxx.com/xxx.mp3' // 必填项，音频地址
  *     container: node           // 必填项，容器的selector或者node
+ *     axisHeight: number        // 选填，频谱图区域高度，默认值 250
+ *     axisXHeight: number       // 选填，x轴区域高度，默认值 30
+ *     axisColor: color          // 选填，频谱图区域背景色，默认值 #000
+ *     frequencyColor: color     // 选填，频谱颜色，默认值 #56dda2
+ *     maxScale: number          // 选填，最大放大倍数，默认值 10
+ *     perSeconds: number        // 选填，每屏显示秒数，默认值 10
  * }
  *
  * 例子：
+ *      基础：
  * let kedAudio = new KedAudio({
  *     url: '',
+ *     container: this.$refs[ 'audioContainer' ]
+ * });
+ *
+ *      选填：
+ * let kedAudio = new KedAudio({
+ *     url: '',
+ *     container: this.$refs[ 'audioContainer' ],
+ *     axisHeight: 350,
+ *     axisXHeight: 30,
+ *     axisColor: '#000',
+ *     frequencyColor: '#56dda2',
+ *     maxScale: 10，
+ *     perSeconds: 10
  * });
  * 功能：
  */
@@ -48,7 +68,6 @@ const ERR_INFO = {
     }
 };
 
-const BG_HEIGHT = 280;           // 背景SVG高度
 const AXIS_HEIGHT = 250;         // 坐标系高度
 const AXIS_X_HEIGHT = 30;       // 坐标系X轴高度
 const AXIS_COLOR = '#000';       // 坐标系的背景色
@@ -63,14 +82,13 @@ class KedAudio {
         // 初始化参数
         this.url = option.url;  // 必填项，音频地址。
         this.container = option.container;  // 必填项，容器标签
-        this.d3Container = d3.select(option.container);  // 容器转换为d3容器
-        this.bgHeight = option.bgHeight || BG_HEIGHT;  // 背景SVG高度
+        this.d3Container = null;  // 容器转换为d3容器
         this.axisHeight = option.axisHeight || AXIS_HEIGHT;  // 坐标系高度
         this.axisXHeight = option.axisXHeight || AXIS_X_HEIGHT;  // 坐标系X轴高度
         this.axisColor = option.axisColor || AXIS_COLOR;  // 坐标系背景色
         this.frequencyColor = option.frequencyColor || FREQUENCY_COLOR;  // 频谱颜色
         this.maxScale = option.maxScale || MAX_SCALE;  // 最大放大倍数
-        this.minScale = option.minScale || MIN_SCALE;  // 最小缩小倍数
+        this.minScale = option.minScale || MIN_SCALE;  // 最小缩小倍数，暂不支持最小倍数的配置
         this.perScale = option.perScale || PER_SCALE;  // 每次缩放的倍数
         this.perSeconds = option.perSeconds || PER_SECONDS;  // 每屏显示的时长
 
@@ -300,7 +318,7 @@ class KedAudio {
             .attr('id', 'frequency')
             .attr('width', drawWidth)
             .attr('height', this.axisHeight)
-            .attr('style', 'background-color: #000')
+            .attr('style', `background-color: ${this.axisColor}`)
             .append('path')
             .attr('stroke', this.frequencyColor)
             .attr('fill', this.frequencyColor)
@@ -314,21 +332,23 @@ class KedAudio {
      * @private
      */
     _createSVGContainer() {
-        if (!this.d3Container) {
+        if (!this.container) {
             // 没有传入有效的容器
             throw ERR_INFO.DECODE_AUDIO_ERR;
         }
 
-        // 设置容器的样式
-        let containerStyle = 'width: 100%; position: relative; overflow-x: auto; overflow-y: hidden';
-        this.d3Container.attr('style', containerStyle);
+        // 创建容器的样式
+        let containerHeight = this.axisHeight + this.axisXHeight;
+        let containerStyle = `width: 100%; height: ${containerHeight}px; position: relative; overflow-x: auto; overflow-y: hidden`;
+        this.d3Container = d3.select(this.container).append('div')
+            .attr('style', containerStyle);
 
         // 设置容器的宽高
         this.containerWidth = this.container.clientWidth;
         this.containerHeight = this.container.clientHeight;
 
         let containerWidth = this.containerWidth;  // 频谱可视区域宽度
-        this.step = containerWidth / 10;  // 大刻度步长
+        this.step = containerWidth / this.perSeconds;  // 大刻度步长
     }
 
     /**
