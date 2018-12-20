@@ -17,7 +17,7 @@
             init() {
                 try {
                     new Kiddio({
-                        url: 'https://ks3-cn-beijing.ksyun.com/imagemark/audio_20181020/44609f7a42be371a8fcfb796aebd91ed.wav',
+                        url: '',
                         container: this.$refs[ 'audioContainer' ]
                     });
                 } catch (e) {
