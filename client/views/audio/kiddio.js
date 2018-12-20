@@ -93,6 +93,7 @@ class KedAudio {
         this.perSeconds = option.perSeconds || PER_SECONDS;  // 每屏显示的时长
 
         // 内部变量
+        this.d3ContainerDom = null;  // d3容器原生节点，用来获取原生元素的一些属性
         this.context = null;  // 音频文件上下文环境
         this.buffer = null;   // 音频数据
         this.containerWidth = 0;  // 容器的宽度
@@ -104,6 +105,8 @@ class KedAudio {
         this.duration = 10;   // 音频时长
         this.step = 0;   // 大刻度步长
         this.frequencyArry = [];  // 存放频谱数值数组
+        this.curPointScale = 0;   // 当前鼠标点相对于频谱区左侧的位置比例，用于缩放以当前鼠标点定位
+        this.offsetX = 0;         // 当前鼠标点相对于d3容器的偏移量
 
         this._init();
     }
@@ -165,7 +168,7 @@ class KedAudio {
             request.responseType = 'arraybuffer'; // 配置数据返回类型
             // 一旦获取完成，对音频进行进一步操作，比如解码
             request.onload = () => {
-                console.log('status:', request.status, request.response);
+                // console.log('status:', request.status, request.response);
                 if ((request.status >= 200 && request.status < 300) || request.status === 304) {
                     let audioData = request.response.slice(0);
                     this._decodeAudioData(audioData);
@@ -217,12 +220,12 @@ class KedAudio {
      * @private
      */
     _decodeAudioData(data) {
-        console.log('_decodeAudioData:', data);
+        // console.log('_decodeAudioData:', data);
         this.context.decodeAudioData(data, buffer => {
             // 解码音频文件，获得文件信息
             this.buffer = buffer;
             this.duration = buffer.duration;
-            console.log('_decodeAudioData:', buffer);
+            // console.log('_decodeAudioData:', buffer);
 
             // 画频谱
             this._draw();
@@ -246,7 +249,7 @@ class KedAudio {
         let frequencyData = new Float32Array(maxTimeWidth);  // 存放频谱数据的数组
         let axisHeight = this.axisHeight;  // 坐标系的高度
 
-        console.log('_getChannelData:', maxTimeWidth, pixelStep);
+        // console.log('_getChannelData:', maxTimeWidth, pixelStep);
         for (let i = 0; i < maxTimeWidth; i++) {
             let frequency = 0.0;
             for (let j = 0; j < buffer.numberOfChannels; j++) {
@@ -256,7 +259,7 @@ class KedAudio {
             frequencyData[ i ] = frequency;
         }
 
-        console.log('_getChannelData:', frequencyData);
+        // console.log('_getChannelData:', frequencyData);
 
         // 生成坐标系内线性数值
         let minValue = d3.min(frequencyData);
@@ -282,7 +285,7 @@ class KedAudio {
                 this.frequencyArry.push(axisHeight / 2);
             }
         }
-        console.log('frequencyArry:', this.frequencyArry);
+        // console.log('frequencyArry:', this.frequencyArry);
     }
 
     /**
@@ -300,7 +303,6 @@ class KedAudio {
      */
     _resetFrequency() {
         this.d3Container.select('#frequency').remove();
-        console.log('_resetFrequency:');
     }
 
     /**
@@ -317,7 +319,7 @@ class KedAudio {
         let drawArry = [];  // 存放频谱图路径
         let middleHeight = this.axisHeight / 2;   // 频谱中线的Y坐标
 
-        console.log('middleHeight:', middleHeight);
+        // console.log('middleHeight:', middleHeight);
         // 频谱路径数组，基于最小缩放倍数为1的情况，如果更小需要做修改
         for (let i = 0; i < len; i++) {
             drawArry.push([ i, middleHeight ]);
@@ -325,8 +327,8 @@ class KedAudio {
             drawArry.push([ i, middleHeight ]);
         }
 
-        console.log('_drawFrequency:', drawArry);
-        console.log('frequency:', this.timeWidth * this.scale, this.axisHeight, this.frequencyColor);
+        // console.log('_drawFrequency:', drawArry);
+        // console.log('frequency:', this.timeWidth * this.scale, this.axisHeight, this.frequencyColor);
 
         let drawWidth = this.timeWidth * this.scale;
         if (drawWidth < this.axisWidth) {
@@ -345,6 +347,8 @@ class KedAudio {
             .attr('stroke-width', 1 / window.devicePixelRatio)
             .attr('d', this.linearLine(drawArry));
 
+        this.d3ContainerDom.scrollLeft = this.axisWidth * this.scale * this.curPointScale - this.offsetX;
+        console.log('scrollLeft:', this.curPointScale, this.offsetX, this.d3ContainerDom.scrollLeft, this.axisWidth * this.scale);
     }
 
     /**
@@ -365,7 +369,10 @@ class KedAudio {
         // 创建容器的样式
         let containerStyle = `width: 100%; height: ${this.containerHeight}px; position: relative; overflow-x: auto; overflow-y: hidden`;
         this.d3Container = d3.select(container).append('div')
+            .attr('id', 'd3Container')
             .attr('style', containerStyle);
+
+        this.d3ContainerDom = document.getElementById('d3Container');
 
 
         let containerWidth = this.containerWidth;  // 频谱可视区域宽度
@@ -378,7 +385,7 @@ class KedAudio {
      */
     _resetCoordinates() {
         this.d3Container.select('#coordinates').remove();
-        console.log('_resetCoordinates:', this.duration);
+        // console.log('_resetCoordinates:', this.duration);
         this.timeWidth = this.step * this.duration;   // 音频的宽度
         this.axisWidth = this.timeWidth;   // x轴的宽度
         // 数据音频展示时长不足一屏显示的时长，x轴仍然画一屏
@@ -407,7 +414,6 @@ class KedAudio {
     _drawCoordinates() {
         this._resetCoordinates();
 
-        console.log('this.d3Container:', this.d3Container);
         let curTimeWidth = this.timeWidth * this.scale;  // 当前的时长宽度
         let curAxisWidth = curTimeWidth;  // 当前的坐标系宽度
         if (curTimeWidth < this.axisWidth) {
@@ -439,9 +445,7 @@ class KedAudio {
         let axisX = d3.scaleLinear()
             .domain([ time, time + 1000 * duration ])
             .range([ 0, curAxisWidth ]).ticks(duration);
-        console.log(duration, curAxisWidth, axisX);
 
-        console.log('scale:', this.scale);
         for (let i = 0; i < duration; i++) {
             let bx = i * this.step * this.scale;  // 大刻度x轴坐标
             axisSticks.push([ bx, axisHeight ]);  // 大刻度点
@@ -493,38 +497,50 @@ class KedAudio {
             // 如果在做放大缩小的操作则阻止浏览器默认行为
             if (Math.abs(wheel) > 100) {
                 e.preventDefault();
-            }
-            //滚轮滚动一定距离、允许缩放功能打开、非播放状态时可缩放
-            if (wheel < -100 && !this.scaling) {
-                // console.log('onmousewheel:缩小');
-                if (this.scale <= this.minScale) {
-                    console.log('已缩放到最小');
+
+                // 如果正在缩放中，不再进行缩放
+                if (this.scaling) {
                     return;
                 }
-                this.scaling = true;
-                this.scale -= this.perScale;
+                // 计算当前点在频谱坐标系中的位置比例，用于缩放以当前鼠标点定位
+                this.curPointScale = e.offsetX / (this.axisWidth * this.scale);
+                this.offsetX = e.offsetX - this.d3ContainerDom.scrollLeft;
+                console.log('curPointScale:', this.curPointScale, e.offsetX, this.d3ContainerDom.scrollLeft, this.axisWidth * this.scale);
 
-                // 画频谱
-                this._draw();
+                // 滚轮滚动一定距离、允许缩放功能打开、非播放状态时可缩放
+                if (wheel < -100) {
+                    // console.log('onmousewheel:缩小');
+                    if (this.scale <= this.minScale) {
+                        console.log('已缩放到最小');
+                        return;
+                    }
+                    this.scaling = true;
+                    this.scale -= this.perScale;
+                    console.log('scale:', this.scale);
 
-                setTimeout(() => {
-                    this.scaling = false;
-                }, 500);
-            } else if (wheel > 100 && !this.scaling) {
-                // console.log('onmousewheel:放大');
-                if (this.scale >= this.maxScale) {
-                    console.log('已缩放到最大');
-                    return;
+                    // 画频谱
+                    this._draw();
+
+                    setTimeout(() => {
+                        this.scaling = false;
+                    }, 500);
+                } else if (wheel > 100) {
+                    // console.log('onmousewheel:放大');
+                    if (this.scale >= this.maxScale) {
+                        console.log('已缩放到最大');
+                        return;
+                    }
+                    this.scaling = true;
+                    this.scale += this.perScale;
+                    console.log('scale:', this.scale);
+
+                    // 画频谱
+                    this._draw();
+
+                    setTimeout(() => {
+                        this.scaling = false;
+                    }, 500);
                 }
-                this.scaling = true;
-                this.scale += this.perScale;
-
-                // 画频谱
-                this._draw();
-
-                setTimeout(() => {
-                    this.scaling = false;
-                }, 500);
             }
         });
     }
