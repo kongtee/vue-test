@@ -133,7 +133,7 @@ class KedAudio {
         // 获取音频文件
         this._getAudioFile(this.url);
         // 创建SVG容器
-        this._createSVGContainer();
+        this._createSVGContainer(this.container);
         // 绘制坐标系
         this._drawCoordinates();
         // 事件绑定
@@ -142,7 +142,7 @@ class KedAudio {
 
     /**
      * 检测是否是可识别的音频文件格式
-     * @param url
+     * @param url 音频文件地址
      * @private
      */
     _checkAudioFileType(url) {
@@ -222,9 +222,10 @@ class KedAudio {
             // 解码音频文件，获得文件信息
             this.buffer = buffer;
             this.duration = buffer.duration;
-            this._drawCoordinates();
             console.log('_decodeAudioData:', buffer);
-            this._getChannelData();
+
+            // 画频谱
+            this._draw();
         }, function (e) {
             // 这个是解码失败
             throw ERR_INFO.DECODE_AUDIO_ERR;
@@ -282,8 +283,24 @@ class KedAudio {
             }
         }
         console.log('frequencyArry:', this.frequencyArry);
-        // 画频谱
-        this._drawFrequency();
+    }
+
+    /**
+     * 绘制
+     * @private
+     */
+    _draw() {
+        this._drawCoordinates();  // 绘制坐标系
+        this._drawFrequency();    // 绘制频谱
+    }
+
+    /**
+     * 重置频谱区
+     * @private
+     */
+    _resetFrequency() {
+        this.d3Container.select('#frequency').remove();
+        console.log('_resetFrequency:');
     }
 
     /**
@@ -291,6 +308,9 @@ class KedAudio {
      * @private
      */
     _drawFrequency() {
+        this._resetFrequency();
+        this._getChannelData();
+
         // let len = this.frequencyArry.length * this.scale / this.maxScale;
         let len = this.frequencyArry.length;
         let frequencyArry = this.frequencyArry;
@@ -329,23 +349,24 @@ class KedAudio {
 
     /**
      * 创建SVG容器
+     * @param container 外部容器Node
      * @private
      */
-    _createSVGContainer() {
-        if (!this.container) {
+    _createSVGContainer(container) {
+        if (!container) {
             // 没有传入有效的容器
             throw ERR_INFO.DECODE_AUDIO_ERR;
         }
 
+        // 设置容器的宽高
+        this.containerWidth = container.clientWidth;
+        this.containerHeight = this.axisHeight + this.axisXHeight;
+
         // 创建容器的样式
-        let containerHeight = this.axisHeight + this.axisXHeight;
-        let containerStyle = `width: 100%; height: ${containerHeight}px; position: relative; overflow-x: auto; overflow-y: hidden`;
-        this.d3Container = d3.select(this.container).append('div')
+        let containerStyle = `width: 100%; height: ${this.containerHeight}px; position: relative; overflow-x: auto; overflow-y: hidden`;
+        this.d3Container = d3.select(container).append('div')
             .attr('style', containerStyle);
 
-        // 设置容器的宽高
-        this.containerWidth = this.container.clientWidth;
-        this.containerHeight = this.container.clientHeight;
 
         let containerWidth = this.containerWidth;  // 频谱可视区域宽度
         this.step = containerWidth / this.perSeconds;  // 大刻度步长
@@ -364,17 +385,6 @@ class KedAudio {
         if (this.timeWidth < this.containerWidth) {
             this.axisWidth = this.containerWidth;
         }
-        // d3.selectAll('#axisBackGround').remove();
-        // this.axisWidth = this.container.clientWidth * this.scale / this.maxScale;
-        // d3.selectAll('#axisBox').attr('style', `width: ${this.axisWidth}px`); //更改坐标轴处触发滚动div的宽度
-        //
-        // this.SVG.append("rect")
-        //     .attr("fill", this.axisXColor)
-        //     .attr("x", 0)
-        //     .attr("width", this.container.clientWidth)
-        //     .attr("y", this.axisHeight)
-        //     .attr('height', this.axisXHeight)
-        //     .attr('id', 'axisBackGround');
     }
 
     /**
@@ -478,13 +488,15 @@ class KedAudio {
         // 监听滚轮事件，放大缩小
         this.d3Container.on('mousewheel', () => {
             let e = window.event;
-            e.preventDefault();
             let wheel = e.wheelDelta;
-            console.log('mousewheel:', wheel);
+            // console.log('mousewheel:', wheel, e);
+            // 如果在做放大缩小的操作则阻止浏览器默认行为
+            if (Math.abs(wheel) > 100) {
+                e.preventDefault();
+            }
             //滚轮滚动一定距离、允许缩放功能打开、非播放状态时可缩放
-            // if (wheel < -100 && that.mouseScrollState && !that.play) {
             if (wheel < -100 && !this.scaling) {
-                console.log('onmousewheel:缩小');
+                // console.log('onmousewheel:缩小');
                 if (this.scale <= this.minScale) {
                     console.log('已缩放到最小');
                     return;
@@ -492,13 +504,14 @@ class KedAudio {
                 this.scaling = true;
                 this.scale -= this.perScale;
 
-                this._drawCoordinates();
+                // 画频谱
+                this._draw();
 
                 setTimeout(() => {
                     this.scaling = false;
                 }, 500);
             } else if (wheel > 100 && !this.scaling) {
-                console.log('onmousewheel:放大');
+                // console.log('onmousewheel:放大');
                 if (this.scale >= this.maxScale) {
                     console.log('已缩放到最大');
                     return;
@@ -506,7 +519,8 @@ class KedAudio {
                 this.scaling = true;
                 this.scale += this.perScale;
 
-                this._drawCoordinates();
+                // 画频谱
+                this._draw();
 
                 setTimeout(() => {
                     this.scaling = false;
