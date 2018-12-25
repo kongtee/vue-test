@@ -3,12 +3,13 @@
  * Date: 2018/12/09
  * 语音标注工具库
  *
+ * 使用请见README.md
  * 参数：option = {
  *     url: 'http://xxxx.com/xxx.mp3' // 必填项，音频地址
  *     container: node           // 必填项，容器的selector或者node
  *     axisHeight: number        // 选填，频谱图区域高度，默认值 250
  *     axisXHeight: number       // 选填，x轴区域高度，默认值 30
- *     axisColor: color          // 选填，频谱图区域背景色，默认值 #000
+ *     coordinatesColor: color          // 选填，频谱图区域背景色，默认值 #000
  *     frequencyColor: color     // 选填，频谱颜色，默认值 #56dda2
  *     maxScale: number          // 选填，最大放大倍数，默认值 10
  *     perSeconds: number        // 选填，每屏显示秒数，默认值 10
@@ -27,11 +28,12 @@
  *     container: this.$refs[ 'audioContainer' ],
  *     axisHeight: 350,
  *     axisXHeight: 30,
- *     axisColor: '#000',
+ *     coordinatesColor: '#000',
  *     frequencyColor: '#56dda2',
  *     maxScale: 10，
  *     perSeconds: 10
  * });
+ *
  * 功能：
  */
 
@@ -70,8 +72,9 @@ const ERR_INFO = {
 
 const AXIS_HEIGHT = 250;         // 坐标系高度
 const AXIS_X_HEIGHT = 30;       // 坐标系X轴高度
-const AXIS_COLOR = '#000';       // 坐标系的背景色
-const FREQUENCY_COLOR = '#56dda2';  // 坐标系X轴的背景色
+const COORDINATES_COLOR = '#000';   // 坐标系的背景色
+const FREQUENCY_COLOR = '#56dda2';  // 频谱颜色
+const AXIS_X_COLOR = '#424242';  // 坐标系X轴的背景色
 const MAX_SCALE = 10;            // 最大放大倍数
 const MIN_SCALE = 1;             // 最小缩小倍数
 const PER_SCALE = 1;             // 每次缩放的倍数
@@ -85,8 +88,9 @@ class KedAudio {
         this.d3Container = null;  // 容器转换为d3容器
         this.axisHeight = option.axisHeight || AXIS_HEIGHT;  // 坐标系高度
         this.axisXHeight = option.axisXHeight || AXIS_X_HEIGHT;  // 坐标系X轴高度
-        this.axisColor = option.axisColor || AXIS_COLOR;  // 坐标系背景色
+        this.coordinatesColor = option.coordinatesColor || COORDINATES_COLOR;  // 坐标系背景色
         this.frequencyColor = option.frequencyColor || FREQUENCY_COLOR;  // 频谱颜色
+        this.axisXColor = option.axisXColor || AXIS_X_COLOR;  // 坐标系X轴的背景色
         this.maxScale = option.maxScale || MAX_SCALE;  // 最大放大倍数
         this.minScale = option.minScale || MIN_SCALE;  // 最小缩小倍数，暂不支持最小倍数的配置
         this.perScale = option.perScale || PER_SCALE;  // 每次缩放的倍数
@@ -94,6 +98,7 @@ class KedAudio {
 
         // 内部变量
         this.d3ContainerDom = null;  // d3容器原生节点，用来获取原生元素的一些属性
+        this.svg = null;      // svg容器
         this.context = null;  // 音频文件上下文环境
         this.buffer = null;   // 音频数据
         this.containerWidth = 0;  // 容器的宽度
@@ -295,6 +300,7 @@ class KedAudio {
     _draw() {
         this._drawCoordinates();  // 绘制坐标系
         this._drawFrequency();    // 绘制频谱
+        this._drawPlayLine();     // 绘制播放线段
     }
 
     /**
@@ -336,11 +342,13 @@ class KedAudio {
         }
 
         // 添加频谱元素
-        this.d3Container.append('svg')
+        this.d3Container.append('g')
             .attr('id', 'frequency')
             .attr('width', drawWidth)
             .attr('height', this.axisHeight)
-            .attr('style', `background-color: ${this.axisColor}`)
+            .attr('style', 'background-color: #f0f')
+            .attr('transform', 'translate(0, 0)')
+            // .attr('style', `background-color: ${this.coordinatesColor}`)
             .append('path')
             .attr('stroke', this.frequencyColor)
             .attr('fill', this.frequencyColor)
@@ -349,6 +357,21 @@ class KedAudio {
 
         this.d3ContainerDom.scrollLeft = this.axisWidth * this.scale * this.curPointScale - this.offsetX;
         console.log('scrollLeft:', this.curPointScale, this.offsetX, this.d3ContainerDom.scrollLeft, this.axisWidth * this.scale);
+    }
+
+    /**
+     * 绘制播放线段
+     * @private
+     */
+    _drawPlayLine() {
+        this.d3Container.append('line')
+            .attr('id', 'playLine')
+            .attr('x1', 0)
+            .attr('y1', 0)
+            .attr('x2', 0)
+            .attr('y2', this.axisHeight)
+            .attr('stroke', '#EF353E')
+            .attr('stroke-width', 1 / window.devicePixelRatio);
     }
 
     /**
@@ -367,13 +390,14 @@ class KedAudio {
         this.containerHeight = this.axisHeight + this.axisXHeight;
 
         // 创建容器的样式
-        let containerStyle = `width: 100%; height: ${this.containerHeight}px; position: relative; overflow-x: auto; overflow-y: hidden`;
-        this.d3Container = d3.select(container).append('div')
+        // let containerStyle = `width: 100%; height: ${this.containerHeight}px; position: relative; overflow-x: auto; overflow-y: hidden`;
+        this.d3Container = d3.select(container).append('svg')
             .attr('id', 'd3Container')
-            .attr('style', containerStyle);
+            .attr('width', this.containerWidth)
+            .attr('height', this.containerHeight)
+            .attr('style', `background-color: ${this.coordinatesColor}`);
 
         this.d3ContainerDom = document.getElementById('d3Container');
-
 
         let containerWidth = this.containerWidth;  // 频谱可视区域宽度
         this.step = containerWidth / this.perSeconds;  // 大刻度步长
@@ -396,6 +420,7 @@ class KedAudio {
 
     /**
      * 画线性线段
+     * @param points 画线数组
      */
     linearLine(points) {
         return d3.line()
@@ -425,20 +450,23 @@ class KedAudio {
         }
 
         // 设置X轴坐标元素的样式
-        let coordinatesStyle = 'position: absolute; left: 0; top: 0';
         // 添加X轴坐标元素
-        let coordinates = this.d3Container.append('svg')
+        let coordinates = this.d3Container.append('g')
             .attr('id', 'coordinates')
+            .attr('transform', `translate(0, ${this.axisHeight})`)
             .attr('width', curAxisWidth)
-            .attr('height', this.containerHeight)
-            .attr('style', coordinatesStyle);
+            .attr('height', this.axisXHeight);
+
+        coordinates.append('rect')
+            .attr('width', curAxisWidth)
+            .attr('height', this.axisXHeight)
+            .attr('fill', this.axisXColor);
 
         let time = new Date('2018-12-12 00:00:00').getTime(); // 随便选取个时间的开始，用来格式化标尺x轴刻度
         let containerWidth = this.containerWidth;  // 频谱可视区域宽度
 
         let axisSticks = [];  // 存放刻度的路径坐标
-        let axisHeight = this.axisHeight;  // 频谱区域高度
-        let textTop = axisHeight + this.axisXHeight / 2; // 刻度文字的y坐标
+        let textTop = this.axisXHeight / 2; // 刻度文字的y坐标
         let rulerText = ' 0s';   // x轴刻度文本
 
         // 获取展示的x轴刻度的值的数组
@@ -448,9 +476,9 @@ class KedAudio {
 
         for (let i = 0; i < duration; i++) {
             let bx = i * this.step * this.scale;  // 大刻度x轴坐标
-            axisSticks.push([ bx, axisHeight ]);  // 大刻度点
-            axisSticks.push([ bx, axisHeight - 20 ]);  // 大刻度的竖线
-            axisSticks.push([ bx, axisHeight ]);
+            axisSticks.push([ bx, 0 ]);  // 大刻度点
+            axisSticks.push([ bx, -20 ]);  // 大刻度的竖线
+            axisSticks.push([ bx, 0 ]);
             if (i > 0) {
                 rulerText = d3.timeFormat('%M:%S')(axisX[ i ]);
             }
@@ -458,24 +486,23 @@ class KedAudio {
             // 绘制x轴刻度文本
             coordinates.append('text')
                 .text(rulerText)
-                .attr('x', bx)
-                .attr('y', textTop)
+                .attr('transform', `translate(${bx}, ${textTop})`)
                 .attr('fill', '#fff')
                 .attr('text-anchor', 'middle');
 
             // 计算小刻度坐标
             for (let j = 1; j < 10; j++) {
                 let sx = bx + j * (this.step / 10) * this.scale;  // 小刻度x轴坐标
-                axisSticks.push([ sx, axisHeight ]);
-                axisSticks.push([ sx, axisHeight - 10 ]);
-                axisSticks.push([ sx, axisHeight ]);
+                axisSticks.push([ sx, 0 ]);
+                axisSticks.push([ sx, -10 ]);
+                axisSticks.push([ sx, 0 ]);
             }
         }
 
         // 计算最后一个刻度
-        axisSticks.push([ containerWidth, axisHeight ]);
-        axisSticks.push([ containerWidth, axisHeight - 20 ]);
-        axisSticks.push([ containerWidth, axisHeight ]);
+        axisSticks.push([ containerWidth, 0 ]);
+        axisSticks.push([ containerWidth, -20 ]);
+        axisSticks.push([ containerWidth, 0 ]);
 
         // 绘制x轴和刻度线
         coordinates.append('path')
@@ -543,6 +570,24 @@ class KedAudio {
                 }
             }
         });
+    }
+
+    /**
+     * 播放
+     * @param when 延迟播放时间，单位为秒（非必填，默认值为0）
+     * @param offset 定位音频到第几秒开始播放（）
+     * @param duration 从开始播放结束时长，当经过设置秒数后自动结束音频播放
+     */
+    play(when, offset, duration) {
+        console.log('play');
+        let bufferSource = this.context.createBufferSource();  // 创建一个音频源
+        bufferSource.connect(this.context.destination); // 连接到音频最终输出的目标
+        bufferSource.buffer = this.buffer;   // 将音频数据传递给音频源
+        console.log('buffer:', this.buffer);
+        bufferSource.start(when, offset, duration);
+        // bufferSource.start(when, offset, duration);
+        // bufferSource.start(when, offset, duration);
+
     }
 }
 

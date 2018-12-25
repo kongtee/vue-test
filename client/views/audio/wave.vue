@@ -1,7 +1,9 @@
 <template>
     <div class="frequency-audio-wrap">
-        <div class="frequency-audio-container" ref="audioContainer">
+        <div>
+            <button @click="onPlay">播放</button>
         </div>
+        <div class="frequency-audio-container" ref="audioContainer"></div>
     </div>
 </template>
 
@@ -16,15 +18,18 @@
         methods: {
             init() {
                 try {
-                    new Kiddio({
-                        url: '',
+                    this.kiddio = new Kiddio({
+                        url: 'https://ks3-cn-beijing.ksyun.com/imagemark/audio_20181020/44609f7a42be371a8fcfb796aebd91ed.wav',
+                        // url: '',
                         container: this.$refs[ 'audioContainer' ]
                     });
                 } catch (e) {
                     console.error(e);
                 }
+            },
+            onPlay() {
+                this.kiddio.play();
             }
-
         }
     }
 </script>
