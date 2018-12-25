@@ -48,7 +48,7 @@ let kedAudio = new KedAudio({
 
 
 
-## 三、功能：
+## 三、方法：
 ###1.play()：播放功能
 
 #### 参数：
@@ -60,4 +60,40 @@ offset 定位音频到第几秒开始播放
 duration 从开始播放结束时长，当经过设置秒数后自动结束音频播放
 
 #### 例子：
+
+## 四、属性
+
+1.url ：// 音频地址。
+
+2.container： // 容器标签
+
+3.axisHeight： // 坐标系高度
+
+4.axisXHeight:  // 坐标系X轴高度
+
+5.coordinatesColor:  // 坐标系背景色
+
+6.frequencyColor:   // 频谱颜色
+
+7.axisXColor:   // 坐标系X轴的背景色
+
+8.maxScale:    // 最大放大倍数
+
+9.minScale:     // 最小缩小倍数
+
+10.perScale:   // 每次缩放的倍数
+
+11.context:     // 音频文件上下文环境
+
+12.buffer:    // 音频数据
+
+13.containerWidth:   // 容器的宽度
+
+14.containerHeight:  // 容器的高度
+
+15.scale:  // 放大倍数
+
+16.duration:   // 音频时长
+
+17.playLine:   // 播放线
 

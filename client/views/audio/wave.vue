@@ -27,7 +27,7 @@
                 }
             },
             onPlay() {
-                this.kiddio.play();
+                this.kiddio.play(0, 0, this.kiddio.duration);
             }
         }
     }

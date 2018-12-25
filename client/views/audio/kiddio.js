@@ -85,7 +85,6 @@ class KedAudio {
         // 初始化参数
         this.url = option.url;  // 必填项，音频地址。
         this.container = option.container;  // 必填项，容器标签
-        this.d3Container = null;  // 容器转换为d3容器
         this.axisHeight = option.axisHeight || AXIS_HEIGHT;  // 坐标系高度
         this.axisXHeight = option.axisXHeight || AXIS_X_HEIGHT;  // 坐标系X轴高度
         this.coordinatesColor = option.coordinatesColor || COORDINATES_COLOR;  // 坐标系背景色
@@ -96,22 +95,26 @@ class KedAudio {
         this.perScale = option.perScale || PER_SCALE;  // 每次缩放的倍数
         this.perSeconds = option.perSeconds || PER_SECONDS;  // 每屏显示的时长
 
-        // 内部变量
-        this.d3ContainerDom = null;  // d3容器原生节点，用来获取原生元素的一些属性
-        this.svg = null;      // svg容器
+        // 外部属性
         this.context = null;  // 音频文件上下文环境
         this.buffer = null;   // 音频数据
         this.containerWidth = 0;  // 容器的宽度
         this.containerHeight = 0; // 容器的高度
         this.scale = 1;       // 放大倍数
-        this.scaling = false; // 是否在缩放中
-        this.axisWidth = 0;   // 坐标系宽度
-        this.timeWidth = 0;   // 音频的宽度
         this.duration = 10;   // 音频时长
-        this.step = 0;   // 大刻度步长
-        this.frequencyArry = [];  // 存放频谱数值数组
-        this.curPointScale = 0;   // 当前鼠标点相对于频谱区左侧的位置比例，用于缩放以当前鼠标点定位
-        this.offsetX = 0;         // 当前鼠标点相对于d3容器的偏移量
+        this.playLine = null;     // 播放线
+
+        // 内部属性
+        this._d3Container = null;  // 容器转换为d3容器
+        this._d3ContainerDom = null;  // d3容器原生节点，用来获取原生元素的一些属性
+        this._svg = null;      // svg容器
+        this._scaling = false; // 是否在缩放中
+        this._axisWidth = 0;   // 坐标系宽度
+        this._timeWidth = 0;   // 音频的宽度
+        this._step = 0;   // 大刻度步长
+        this._frequencyArry = [];  // 存放频谱数值数组
+        this._curPointScale = 0;   // 当前鼠标点相对于频谱区左侧的位置比例，用于缩放以当前鼠标点定位
+        this._offsetX = 0;         // 当前鼠标点相对于d3容器的偏移量
 
         this._init();
     }
@@ -246,10 +249,10 @@ class KedAudio {
      */
     _getChannelData() {
         let buffer = this.buffer;
-        // let maxTimeWidth = this.timeWidth * MAX_SCALE;  // 放到最大的时长宽度
-        // let maxAxisWidth = this.axisWidth * MAX_SCALE;  // 放到最大的坐标系宽度
-        let maxTimeWidth = this.timeWidth * this.scale;  // 放到当前的倍数的时长宽度
-        let maxAxisWidth = this.axisWidth * this.scale;  // 放到最大的坐标系宽度
+        // let maxTimeWidth = this._timeWidth * MAX_SCALE;  // 放到最大的时长宽度
+        // let maxAxisWidth = this._axisWidth * MAX_SCALE;  // 放到最大的坐标系宽度
+        let maxTimeWidth = this._timeWidth * this.scale;  // 放到当前的倍数的时长宽度
+        let maxAxisWidth = this._axisWidth * this.scale;  // 放到最大的坐标系宽度
         let pixelStep = buffer.getChannelData(0).length / maxTimeWidth;  // 在最大宽度时每像素的抽点精度
         let frequencyData = new Float32Array(maxTimeWidth);  // 存放频谱数据的数组
         let axisHeight = this.axisHeight;  // 坐标系的高度
@@ -274,12 +277,12 @@ class KedAudio {
             .range([ 0, axisHeight / 2, axisHeight ]);
 
         // 生成坐标系内的坐标
-        this.frequencyArry = [];
+        this._frequencyArry = [];
         for (let i = 0; i < maxTimeWidth; i++) {
             if (isNaN(linear(frequencyData[ i ]))) {
-                this.frequencyArry.push(axisHeight / 2);
+                this._frequencyArry.push(axisHeight / 2);
             } else {
-                this.frequencyArry.push(linear(frequencyData[ i ]));
+                this._frequencyArry.push(linear(frequencyData[ i ]));
             }
         }
 
@@ -287,10 +290,10 @@ class KedAudio {
         let lessLen = maxAxisWidth - maxTimeWidth;
         if (lessLen > 0) {
             for (let i = 0; i < lessLen; i++) {
-                this.frequencyArry.push(axisHeight / 2);
+                this._frequencyArry.push(axisHeight / 2);
             }
         }
-        // console.log('frequencyArry:', this.frequencyArry);
+        // console.log('_frequencyArry:', this._frequencyArry);
     }
 
     /**
@@ -308,7 +311,7 @@ class KedAudio {
      * @private
      */
     _resetFrequency() {
-        this.d3Container.select('#frequency').remove();
+        this._d3Container.select('#frequency').remove();
     }
 
     /**
@@ -319,9 +322,9 @@ class KedAudio {
         this._resetFrequency();
         this._getChannelData();
 
-        // let len = this.frequencyArry.length * this.scale / this.maxScale;
-        let len = this.frequencyArry.length;
-        let frequencyArry = this.frequencyArry;
+        // let len = this._frequencyArry.length * this.scale / this.maxScale;
+        let len = this._frequencyArry.length;
+        let _frequencyArry = this._frequencyArry;
         let drawArry = [];  // 存放频谱图路径
         let middleHeight = this.axisHeight / 2;   // 频谱中线的Y坐标
 
@@ -329,20 +332,20 @@ class KedAudio {
         // 频谱路径数组，基于最小缩放倍数为1的情况，如果更小需要做修改
         for (let i = 0; i < len; i++) {
             drawArry.push([ i, middleHeight ]);
-            drawArry.push([ i, frequencyArry[i] ]);
+            drawArry.push([ i, _frequencyArry[i] ]);
             drawArry.push([ i, middleHeight ]);
         }
 
         // console.log('_drawFrequency:', drawArry);
-        // console.log('frequency:', this.timeWidth * this.scale, this.axisHeight, this.frequencyColor);
+        // console.log('frequency:', this._timeWidth * this.scale, this.axisHeight, this.frequencyColor);
 
-        let drawWidth = this.timeWidth * this.scale;
-        if (drawWidth < this.axisWidth) {
-            drawWidth = this.axisWidth
+        let drawWidth = this._timeWidth * this.scale;
+        if (drawWidth < this._axisWidth) {
+            drawWidth = this._axisWidth
         }
 
         // 添加频谱元素
-        this.d3Container.append('g')
+        this._d3Container.append('g')
             .attr('id', 'frequency')
             .attr('width', drawWidth)
             .attr('height', this.axisHeight)
@@ -355,8 +358,8 @@ class KedAudio {
             .attr('stroke-width', 1 / window.devicePixelRatio)
             .attr('d', this.linearLine(drawArry));
 
-        this.d3ContainerDom.scrollLeft = this.axisWidth * this.scale * this.curPointScale - this.offsetX;
-        console.log('scrollLeft:', this.curPointScale, this.offsetX, this.d3ContainerDom.scrollLeft, this.axisWidth * this.scale);
+        this._d3ContainerDom.scrollLeft = this._axisWidth * this.scale * this._curPointScale - this._offsetX;
+        console.log('scrollLeft:', this._curPointScale, this._offsetX, this._d3ContainerDom.scrollLeft, this._axisWidth * this.scale);
     }
 
     /**
@@ -364,7 +367,7 @@ class KedAudio {
      * @private
      */
     _drawPlayLine() {
-        this.d3Container.append('line')
+        this.playLine = this._d3Container.append('line')
             .attr('id', 'playLine')
             .attr('x1', 0)
             .attr('y1', 0)
@@ -391,16 +394,16 @@ class KedAudio {
 
         // 创建容器的样式
         // let containerStyle = `width: 100%; height: ${this.containerHeight}px; position: relative; overflow-x: auto; overflow-y: hidden`;
-        this.d3Container = d3.select(container).append('svg')
-            .attr('id', 'd3Container')
+        this._d3Container = d3.select(container).append('svg')
+            .attr('id', '_d3Container')
             .attr('width', this.containerWidth)
             .attr('height', this.containerHeight)
             .attr('style', `background-color: ${this.coordinatesColor}`);
 
-        this.d3ContainerDom = document.getElementById('d3Container');
+        this._d3ContainerDom = document.getElementById('_d3Container');
 
         let containerWidth = this.containerWidth;  // 频谱可视区域宽度
-        this.step = containerWidth / this.perSeconds;  // 大刻度步长
+        this._step = containerWidth / this.perSeconds;  // 大刻度步长
     }
 
     /**
@@ -408,13 +411,13 @@ class KedAudio {
      * @private
      */
     _resetCoordinates() {
-        this.d3Container.select('#coordinates').remove();
+        this._d3Container.select('#coordinates').remove();
         // console.log('_resetCoordinates:', this.duration);
-        this.timeWidth = this.step * this.duration;   // 音频的宽度
-        this.axisWidth = this.timeWidth;   // x轴的宽度
+        this._timeWidth = this._step * this.duration;   // 音频的宽度
+        this._axisWidth = this._timeWidth;   // x轴的宽度
         // 数据音频展示时长不足一屏显示的时长，x轴仍然画一屏
-        if (this.timeWidth < this.containerWidth) {
-            this.axisWidth = this.containerWidth;
+        if (this._timeWidth < this.containerWidth) {
+            this._axisWidth = this.containerWidth;
         }
     }
 
@@ -439,10 +442,10 @@ class KedAudio {
     _drawCoordinates() {
         this._resetCoordinates();
 
-        let curTimeWidth = this.timeWidth * this.scale;  // 当前的时长宽度
+        let curTimeWidth = this._timeWidth * this.scale;  // 当前的时长宽度
         let curAxisWidth = curTimeWidth;  // 当前的坐标系宽度
-        if (curTimeWidth < this.axisWidth) {
-            curAxisWidth = this.axisWidth;
+        if (curTimeWidth < this._axisWidth) {
+            curAxisWidth = this._axisWidth;
         }
         let duration = this.duration;   // 音频时长
         if (duration < this.perSeconds) {
@@ -451,7 +454,7 @@ class KedAudio {
 
         // 设置X轴坐标元素的样式
         // 添加X轴坐标元素
-        let coordinates = this.d3Container.append('g')
+        let coordinates = this._d3Container.append('g')
             .attr('id', 'coordinates')
             .attr('transform', `translate(0, ${this.axisHeight})`)
             .attr('width', curAxisWidth)
@@ -475,7 +478,7 @@ class KedAudio {
             .range([ 0, curAxisWidth ]).ticks(duration);
 
         for (let i = 0; i < duration; i++) {
-            let bx = i * this.step * this.scale;  // 大刻度x轴坐标
+            let bx = i * this._step * this.scale;  // 大刻度x轴坐标
             axisSticks.push([ bx, 0 ]);  // 大刻度点
             axisSticks.push([ bx, -20 ]);  // 大刻度的竖线
             axisSticks.push([ bx, 0 ]);
@@ -492,7 +495,7 @@ class KedAudio {
 
             // 计算小刻度坐标
             for (let j = 1; j < 10; j++) {
-                let sx = bx + j * (this.step / 10) * this.scale;  // 小刻度x轴坐标
+                let sx = bx + j * (this._step / 10) * this.scale;  // 小刻度x轴坐标
                 axisSticks.push([ sx, 0 ]);
                 axisSticks.push([ sx, -10 ]);
                 axisSticks.push([ sx, 0 ]);
@@ -517,7 +520,7 @@ class KedAudio {
      */
     _bindEvent() {
         // 监听滚轮事件，放大缩小
-        this.d3Container.on('mousewheel', () => {
+        this._d3Container.on('mousewheel', () => {
             let e = window.event;
             let wheel = e.wheelDelta;
             // console.log('mousewheel:', wheel, e);
@@ -526,13 +529,13 @@ class KedAudio {
                 e.preventDefault();
 
                 // 如果正在缩放中，不再进行缩放
-                if (this.scaling) {
+                if (this._scaling) {
                     return;
                 }
                 // 计算当前点在频谱坐标系中的位置比例，用于缩放以当前鼠标点定位
-                this.curPointScale = e.offsetX / (this.axisWidth * this.scale);
-                this.offsetX = e.offsetX - this.d3ContainerDom.scrollLeft;
-                console.log('curPointScale:', this.curPointScale, e.offsetX, this.d3ContainerDom.scrollLeft, this.axisWidth * this.scale);
+                this._curPointScale = e._offsetX / (this._axisWidth * this.scale);
+                this._offsetX = e._offsetX - this._d3ContainerDom.scrollLeft;
+                console.log('_curPointScale:', this._curPointScale, e._offsetX, this._d3ContainerDom.scrollLeft, this._axisWidth * this.scale);
 
                 // 滚轮滚动一定距离、允许缩放功能打开、非播放状态时可缩放
                 if (wheel < -100) {
@@ -541,7 +544,7 @@ class KedAudio {
                         console.log('已缩放到最小');
                         return;
                     }
-                    this.scaling = true;
+                    this._scaling = true;
                     this.scale -= this.perScale;
                     console.log('scale:', this.scale);
 
@@ -549,7 +552,7 @@ class KedAudio {
                     this._draw();
 
                     setTimeout(() => {
-                        this.scaling = false;
+                        this._scaling = false;
                     }, 500);
                 } else if (wheel > 100) {
                     // console.log('onmousewheel:放大');
@@ -557,7 +560,7 @@ class KedAudio {
                         console.log('已缩放到最大');
                         return;
                     }
-                    this.scaling = true;
+                    this._scaling = true;
                     this.scale += this.perScale;
                     console.log('scale:', this.scale);
 
@@ -565,7 +568,7 @@ class KedAudio {
                     this._draw();
 
                     setTimeout(() => {
-                        this.scaling = false;
+                        this._scaling = false;
                     }, 500);
                 }
             }
@@ -585,8 +588,14 @@ class KedAudio {
         bufferSource.buffer = this.buffer;   // 将音频数据传递给音频源
         console.log('buffer:', this.buffer);
         bufferSource.start(when, offset, duration);
-        // bufferSource.start(when, offset, duration);
-        // bufferSource.start(when, offset, duration);
+        this.playLine
+            .attr('x1', offset)
+            .attr('x2', offset)
+            .transition()
+            .ease(d3.easeLinear)
+            .duration(duration * 1000)
+            .attr('x1', this._timeWidth)
+            .attr('x2', this._timeWidth);
 
     }
 }
