@@ -103,6 +103,12 @@ class KedAudio {
         this.scale = 1;       // 放大倍数
         this.duration = 10;   // 音频时长
         this.playLine = null;     // 播放线
+        this.bufferSource = null; // 播放声音的音频源节点
+        this.playParam = {
+            when: 0,              // 延迟播放时间，单位为秒（非必填，默认值为0）
+            offset: 0,            // 定位音频到第几秒开始播放
+            duration: 0           // 从开始播放结束时长，当经过设置秒数后自动结束音频播放
+        };                        // 播放参数
 
         // 内部属性
         this._d3Container = null;  // 容器转换为d3容器
@@ -233,7 +239,7 @@ class KedAudio {
             // 解码音频文件，获得文件信息
             this.buffer = buffer;
             this.duration = buffer.duration;
-            // console.log('_decodeAudioData:', buffer);
+            console.log('duration:', this.duration);
 
             // 画频谱
             this._draw();
@@ -332,7 +338,7 @@ class KedAudio {
         // 频谱路径数组，基于最小缩放倍数为1的情况，如果更小需要做修改
         for (let i = 0; i < len; i++) {
             drawArry.push([ i, middleHeight ]);
-            drawArry.push([ i, _frequencyArry[i] ]);
+            drawArry.push([ i, _frequencyArry[ i ] ]);
             drawArry.push([ i, middleHeight ]);
         }
 
@@ -357,9 +363,6 @@ class KedAudio {
             .attr('fill', this.frequencyColor)
             .attr('stroke-width', 1 / window.devicePixelRatio)
             .attr('d', this.linearLine(drawArry));
-
-        this._d3ContainerDom.scrollLeft = this._axisWidth * this.scale * this._curPointScale - this._offsetX;
-        console.log('scrollLeft:', this._curPointScale, this._offsetX, this._d3ContainerDom.scrollLeft, this._axisWidth * this.scale);
     }
 
     /**
@@ -367,11 +370,13 @@ class KedAudio {
      * @private
      */
     _drawPlayLine() {
+        this._d3Container.select('#playLine').remove();
+        let lineX = this._timeToPos(this.playParam.offset);
         this.playLine = this._d3Container.append('line')
             .attr('id', 'playLine')
-            .attr('x1', 0)
+            .attr('x1', lineX)
             .attr('y1', 0)
-            .attr('x2', 0)
+            .attr('x2', lineX)
             .attr('y2', this.axisHeight)
             .attr('stroke', '#EF353E')
             .attr('stroke-width', 1 / window.devicePixelRatio);
@@ -393,14 +398,17 @@ class KedAudio {
         this.containerHeight = this.axisHeight + this.axisXHeight;
 
         // 创建容器的样式
-        // let containerStyle = `width: 100%; height: ${this.containerHeight}px; position: relative; overflow-x: auto; overflow-y: hidden`;
-        this._d3Container = d3.select(container).append('svg')
+        let d3WrapStyle = `width: 100%; height: ${this.containerHeight}px; position: relative; overflow-x: auto; overflow-y: hidden`;
+        this._d3Container = d3.select(container).append('div')
+            .attr('id', '_d3Wrap')
+            .attr('style', d3WrapStyle)
+            .append('svg')
             .attr('id', '_d3Container')
             .attr('width', this.containerWidth)
             .attr('height', this.containerHeight)
             .attr('style', `background-color: ${this.coordinatesColor}`);
 
-        this._d3ContainerDom = document.getElementById('_d3Container');
+        this._d3ContainerDom = document.getElementById('_d3Wrap');
 
         let containerWidth = this.containerWidth;  // 频谱可视区域宽度
         this._step = containerWidth / this.perSeconds;  // 大刻度步长
@@ -416,9 +424,16 @@ class KedAudio {
         this._timeWidth = this._step * this.duration;   // 音频的宽度
         this._axisWidth = this._timeWidth;   // x轴的宽度
         // 数据音频展示时长不足一屏显示的时长，x轴仍然画一屏
-        if (this._timeWidth < this.containerWidth) {
+        if (this._timeWidth * this.scale < this.containerWidth) {
             this._axisWidth = this.containerWidth;
         }
+
+        // 缩放时重新设置svg宽度
+        let svgWidth = this._axisWidth * this.scale;
+        this._d3Container.attr('width', svgWidth);
+        let scrollLeft = svgWidth * this._curPointScale - this._offsetX;
+        this._d3ContainerDom.scrollLeft = scrollLeft;
+        console.log('scrollLeft:', scrollLeft, this._d3ContainerDom.scrollLeft, ', _axisWidth:', this._axisWidth, ', scale:', this.scale, ', _curPointScale:', this._curPointScale, ', _offsetX:', this._offsetX, ', svgWidth:', svgWidth);
     }
 
     /**
@@ -523,7 +538,7 @@ class KedAudio {
         this._d3Container.on('mousewheel', () => {
             let e = window.event;
             let wheel = e.wheelDelta;
-            // console.log('mousewheel:', wheel, e);
+            // console.log('mousewheel:', wheel, e, this._d3ContainerDom);
             // 如果在做放大缩小的操作则阻止浏览器默认行为
             if (Math.abs(wheel) > 100) {
                 e.preventDefault();
@@ -533,9 +548,9 @@ class KedAudio {
                     return;
                 }
                 // 计算当前点在频谱坐标系中的位置比例，用于缩放以当前鼠标点定位
-                this._curPointScale = e._offsetX / (this._axisWidth * this.scale);
-                this._offsetX = e._offsetX - this._d3ContainerDom.scrollLeft;
-                console.log('_curPointScale:', this._curPointScale, e._offsetX, this._d3ContainerDom.scrollLeft, this._axisWidth * this.scale);
+                this._curPointScale = e.offsetX / (this._axisWidth * this.scale);
+                this._offsetX = e.offsetX - this._d3ContainerDom.scrollLeft;
+                console.log('_curPointScale:', this._curPointScale, e.offsetX, this._d3ContainerDom.scrollLeft, this._axisWidth * this.scale);
 
                 // 滚轮滚动一定距离、允许缩放功能打开、非播放状态时可缩放
                 if (wheel < -100) {
@@ -576,27 +591,53 @@ class KedAudio {
     }
 
     /**
+     * 时间转换为位置
+     * @param time
+     * @private
+     */
+    _timeToPos(time) {
+        let pos = this._timeWidth * this.scale * time / this.duration;
+        return pos;
+    }
+    /**
      * 播放
      * @param when 延迟播放时间，单位为秒（非必填，默认值为0）
-     * @param offset 定位音频到第几秒开始播放（）
-     * @param duration 从开始播放结束时长，当经过设置秒数后自动结束音频播放
+     * @param offset 定位音频到第几秒开始播放
+     * @param duration 从开始播放到结束时长，当经过设置秒数后自动结束音频播放
      */
-    play(when, offset, duration) {
+    play() {
         console.log('play');
-        let bufferSource = this.context.createBufferSource();  // 创建一个音频源
-        bufferSource.connect(this.context.destination); // 连接到音频最终输出的目标
-        bufferSource.buffer = this.buffer;   // 将音频数据传递给音频源
-        console.log('buffer:', this.buffer);
-        bufferSource.start(when, offset, duration);
+        // 如果播放时长为0，认为是在播放到最后
+        let playParam = this.playParam;
+        if (playParam.duration === 0) {
+            this.playParam.duration = this.duration - playParam.offset;
+        }
+        let { when, offset, duration } = playParam;
+        this.bufferSource = this.context.createBufferSource();  // 创建一个音频源
+        this.bufferSource.connect(this.context.destination); // 连接到音频最终输出的目标
+        this.bufferSource.buffer = this.buffer;   // 将音频数据传递给音频源
+        console.log('buffer:', when, offset, duration);
+        let startX = this._timeToPos(offset);     // 开始时间转换为位置
+        let endX = this._timeToPos(duration);     // 结束时间转换位置
+        this.bufferSource.start(when, offset, duration);  // 播放音频
         this.playLine
-            .attr('x1', offset)
-            .attr('x2', offset)
+            .attr('x1', startX)
+            .attr('x2', startX)
             .transition()
             .ease(d3.easeLinear)
             .duration(duration * 1000)
-            .attr('x1', this._timeWidth)
-            .attr('x2', this._timeWidth);
+            .attr('x1', endX)
+            .attr('x2', endX);
 
+    }
+
+    /**
+     * 停止播放
+     */
+    stop() {
+        this.playLine.interrupt();   // 暂停播放线动画
+        this.bufferSource && this.bufferSource.stop();   // 停止音频播放
+        this.playParam.offset = this.context.currentTime;    // 记录暂停的时间点
     }
 }
 

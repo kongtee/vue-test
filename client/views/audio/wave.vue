@@ -2,6 +2,7 @@
     <div class="frequency-audio-wrap">
         <div>
             <button @click="onPlay">播放</button>
+            <button @click="onPause">暂停</button>
         </div>
         <div class="frequency-audio-container" ref="audioContainer"></div>
     </div>
@@ -27,7 +28,10 @@
                 }
             },
             onPlay() {
-                this.kiddio.play(0, 0, this.kiddio.duration);
+                this.kiddio.play();
+            },
+            onPause() {
+                this.kiddio.stop();
             }
         }
     }
@@ -39,6 +43,9 @@
         padding: 8px 8px 0;
 
         .frequency-audio-container {
+            position: relative;
+            height: 280px;
+
             &::-webkit-scrollbar {
                 width: 3px;
                 height: 10px;
